@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PDF Upload Tester</title>
+  <style>
+    :root {
+      --bg: #0f1419;
+      --panel: #1a2330;
+      --border: #2c3a4d;
+      --text: #e8eef5;
+      --muted: #8fa3b8;
+      --accent: #4ea1ff;
+      --accent-hover: #6bb3ff;
+      --ok: #3dd68c;
+      --err: #ff6b6b;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 40px 16px;
+    }
+
+    main {
+      width: min(720px, 100%);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 1.6rem;
+      font-weight: 600;
+    }
+
+    p.lead {
+      margin: 0 0 24px;
+      color: var(--muted);
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .dropzone {
+      border: 1.5px dashed var(--border);
+      border-radius: 10px;
+      padding: 28px 16px;
+      text-align: center;
+      color: var(--muted);
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .dropzone:hover,
+    .dropzone.dragover {
+      border-color: var(--accent);
+      background: rgba(78, 161, 255, 0.08);
+    }
+
+    .dropzone strong {
+      color: var(--text);
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    ul.files {
+      list-style: none;
+      margin: 16px 0 0;
+      padding: 0;
+    }
+
+    ul.files li {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.95rem;
+    }
+
+    ul.files span.size {
+      color: var(--muted);
+      white-space: nowrap;
+    }
+
+    button {
+      margin-top: 18px;
+      width: 100%;
+      border: 0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      background: var(--accent);
+      color: #061018;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    button:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 18px;
+      font-size: 0.95rem;
+    }
+
+    .status.ok { color: var(--ok); }
+    .status.err { color: var(--err); }
+
+    .results {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .card {
+      background: #121a24;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+    }
+
+    .card p {
+      margin: 4px 0;
+      color: var(--muted);
+      font-size: 0.9rem;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>PDF Upload Tester</h1>
+    <p class="lead">Upload one or more PDFs to <code>POST /upload</code>. Files are saved in <code>data/</code> and converted to images.</p>
+
+    <div class="panel">
+      <label class="dropzone" id="dropzone" for="pdfs">
+        Drop PDFs here or click to choose files
+        <br />
+        <strong>Multiple files allowed</strong>
+      </label>
+      <input id="pdfs" type="file" accept="application/pdf,.pdf" multiple />
+
+      <ul class="files" id="file-list"></ul>
+      <button id="upload" type="button" disabled>Upload and convert</button>
+      <div class="status" id="status"></div>
+      <div class="results" id="results"></div>
+    </div>
+  </main>
+
+  <script>
+    const API_BASE = window.location.protocol === "file:" ? "http://localhost:8000" : "";
+    const input = document.getElementById("pdfs");
+    const dropzone = document.getElementById("dropzone");
+    const fileList = document.getElementById("file-list");
+    const uploadBtn = document.getElementById("upload");
+    const statusEl = document.getElementById("status");
+    const resultsEl = document.getElementById("results");
+    let selected = [];
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + " B";
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+      return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+    }
+
+    function setFiles(files) {
+      selected = Array.from(files).filter((file) => file.name.toLowerCase().endsWith(".pdf"));
+      fileList.innerHTML = selected
+        .map((file) => `<li><span>${file.name}</span><span class="size">${formatSize(file.size)}</span></li>`)
+        .join("");
+      uploadBtn.disabled = selected.length === 0;
+      statusEl.textContent = "";
+      statusEl.className = "status";
+      resultsEl.innerHTML = "";
+    }
+
+    input.addEventListener("change", (event) => setFiles(event.target.files));
+
+    ["dragenter", "dragover"].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropzone.classList.add("dragover");
+      });
+    });
+
+    ["dragleave", "drop"].forEach((eventName) => {
+      dropzone.addEventListener(eventName, (event) => {
+        event.preventDefault();
+        dropzone.classList.remove("dragover");
+      });
+    });
+
+    dropzone.addEventListener("drop", (event) => {
+      setFiles(event.dataTransfer.files);
+    });
+
+    uploadBtn.addEventListener("click", async () => {
+      if (!selected.length) return;
+
+      const form = new FormData();
+      selected.forEach((file) => form.append("files", file));
+
+      uploadBtn.disabled = true;
+      statusEl.className = "status";
+      statusEl.textContent = "Uploading and converting…";
+      resultsEl.innerHTML = "";
+
+      try {
+        const response = await fetch(`${API_BASE}/upload`, {
+          method: "POST",
+          body: form,
+        });
+        const data = await response.json().catch(() => ({}));
+
+        if (!response.ok) {
+          throw new Error(data.detail || `Request failed with ${response.status}`);
+        }
+
+        statusEl.className = "status ok";
+        statusEl.textContent = `Uploaded ${data.uploaded} PDF(s) successfully.`;
+        resultsEl.innerHTML = (data.files || [])
+          .map(
+            (file) => `
+              <article class="card">
+                <h2>${file.filename}</h2>
+                <p>Pages: ${file.pages}</p>
+                <p>Images: ${file.images_dir}</p>
+              </article>
+            `
+          )
+          .join("");
+      } catch (error) {
+        statusEl.className = "status err";
+        statusEl.textContent = error.message;
+      } finally {
+        uploadBtn.disabled = selected.length === 0;
+      }
+    });
+  </script>
+</body>
+</html>

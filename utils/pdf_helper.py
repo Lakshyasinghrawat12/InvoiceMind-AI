@@ -52,7 +52,11 @@ def process_pdf(pdf_path, images_root=IMAGES_DIR):
     output_dir = Path(images_root) / pdf_path.stem
     sotre_images(images, output_dir)
     logger.info(f"Stored {len(images)} images in {output_dir}")
-    return True
+    return {
+        "filename": pdf_path.name,
+        "pages": count,
+        "images_dir": str(output_dir),
+    }
 
 if __name__ == "__main__":
     pdfs = list_pdfs()
