@@ -2,4 +2,5 @@
 /images
 /logs
 /env
-/gitrules
+/gitrules__pycache__/
+*.py[cod]
