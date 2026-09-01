@@ -3,3 +3,5 @@
 /logs
 /env
 /gitrules
+__pycache__/
+*.py[cod]
