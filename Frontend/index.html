@@ -68,6 +68,10 @@
       background: rgba(78, 161, 255, 0.08);
     }
 
+    .dropzone * {
+      pointer-events: none;
+    }
+
     .dropzone strong {
       color: var(--text);
     }
@@ -158,11 +162,11 @@
     <p class="lead">Upload one or more PDFs to <code>POST /upload</code>. Files are saved in <code>data/</code> and converted to images.</p>
 
     <div class="panel">
-      <label class="dropzone" id="dropzone" for="pdfs">
+      <div class="dropzone" id="dropzone" role="button" tabindex="0">
         Drop PDFs here or click to choose files
         <br />
         <strong>Multiple files allowed</strong>
-      </label>
+      </div>
       <input id="pdfs" type="file" accept="application/pdf,.pdf" multiple />
 
       <ul class="files" id="file-list"></ul>
@@ -188,36 +192,66 @@
       return (bytes / (1024 * 1024)).toFixed(1) + " MB";
     }
 
+    function formatDetail(detail) {
+      if (!detail) return "";
+      if (typeof detail === "string") return detail;
+      if (Array.isArray(detail)) {
+        return detail.map((item) => item.msg || JSON.stringify(item)).join("; ");
+      }
+      return JSON.stringify(detail);
+    }
+
     function setFiles(files) {
-      selected = Array.from(files).filter((file) => file.name.toLowerCase().endsWith(".pdf"));
+      const list = Array.from(files || []).filter((file) =>
+        file.name.toLowerCase().endsWith(".pdf")
+      );
+      // Cancelled file dialogs fire change with an empty list; keep the current selection.
+      if (!list.length) {
+        input.value = "";
+        return;
+      }
+
+      selected = list;
       fileList.innerHTML = selected
         .map((file) => `<li><span>${file.name}</span><span class="size">${formatSize(file.size)}</span></li>`)
         .join("");
-      uploadBtn.disabled = selected.length === 0;
+      uploadBtn.disabled = false;
       statusEl.textContent = "";
       statusEl.className = "status";
       resultsEl.innerHTML = "";
+      // Allow choosing the same files again after an upload.
+      input.value = "";
     }
+
+    dropzone.addEventListener("click", () => input.click());
+    dropzone.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        input.click();
+      }
+    });
 
     input.addEventListener("change", (event) => setFiles(event.target.files));
 
     ["dragenter", "dragover"].forEach((eventName) => {
+      window.addEventListener(eventName, (event) => event.preventDefault());
       dropzone.addEventListener(eventName, (event) => {
         event.preventDefault();
         dropzone.classList.add("dragover");
       });
     });
 
-    ["dragleave", "drop"].forEach((eventName) => {
-      dropzone.addEventListener(eventName, (event) => {
-        event.preventDefault();
-        dropzone.classList.remove("dragover");
-      });
+    dropzone.addEventListener("dragleave", () => {
+      dropzone.classList.remove("dragover");
     });
 
     dropzone.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropzone.classList.remove("dragover");
       setFiles(event.dataTransfer.files);
     });
+
+    window.addEventListener("drop", (event) => event.preventDefault());
 
     uploadBtn.addEventListener("click", async () => {
       if (!selected.length) return;
@@ -238,7 +272,7 @@
         const data = await response.json().catch(() => ({}));
 
         if (!response.ok) {
-          throw new Error(data.detail || `Request failed with ${response.status}`);
+          throw new Error(formatDetail(data.detail) || `Request failed with ${response.status}`);
         }
 
         statusEl.className = "status ok";
